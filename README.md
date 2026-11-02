@@ -1,5 +1,7 @@
 # Ruleflow
 
+**Live demo: [ruleflow-six.vercel.app](https://ruleflow-six.vercel.app)**
+
 **Business rules in plain English, powered by Gemini.** Describe a rule like
 *“flag orders over $500 from brand-new customers for review”* and Ruleflow turns it into a structured,
 fully editable rule, then tests it live against sample orders.
