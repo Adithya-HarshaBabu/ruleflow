@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { ACTION_TYPES, fieldByKey, FIELDS, OPERATORS } from './schema'
+import { ACTION_TYPES, ACTIONS, fieldByKey, FIELDS, OPERATORS } from './schema'
 import { newId } from './ids'
 import type { Action, Condition, Group, Operator, Rule, RuleNode } from './types'
 
@@ -45,18 +45,26 @@ export function domainPrompt(): string {
     const opts = f.options ? ` values: ${f.options.join(' | ')};` : ''
     return `- ${f.key} (${f.type}${f.unit ? `, ${f.unit}` : ''}):${opts} operators: ${ops}`
   }).join('\n')
+  const actions = ACTION_TYPES.map((t) => {
+    const param = ACTIONS[t].param
+    const detail = !param ? 'no param' : param.options ? `param: ${param.options.join(' | ')}` : `param: ${param.label.toLowerCase()} (number)`
+    return `- ${t} (${detail})`
+  }).join('\n')
   return `You turn plain-English business rules for an e-commerce store into a structured rule.
 
 Allowed fields:
 ${fields}
 
-Allowed actions: ${ACTION_TYPES.join(', ')}.
+Allowed actions (with their param):
+${actions}
 
 Guidelines:
 - Use exactly one root group (parentId null). Nest groups to express mixed AND/OR logic and use negate for NOT.
 - Use only the listed fields, operators and enum values. Map synonyms sensibly (e.g. "first-time buyer" -> customerType eq new, "big order" -> orderTotal).
+- Exclusions invert the condition: "unless X", "except X", "but not X", "excluding X" mean the rule must NOT match when X is true. Use neq / not_in / is_false, or a negated group.
+- Pick the action that matches the requested outcome: asking a customer to verify identity -> send_email with verify_identity; discounts -> apply_discount with the percent; priority changes -> set_priority; stopping an order -> block_order; manual checks -> flag_for_review. Several outcomes -> several actions.
 - When the request is vague about a threshold, pick a sensible value.
-- If no action is stated, infer the most likely one (often flag_for_review).
+- If no outcome is stated at all, use flag_for_review.
 - Keep the rule as small as possible while matching the request.`
 }
 

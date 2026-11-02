@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenAI, ThinkingLevel } from '@google/genai'
 import { domainPrompt, fromLlm, llmJsonSchema, toLlm } from '../rules/llm'
 import type { Rule } from '../rules/types'
 
@@ -7,8 +7,13 @@ export interface HandlerResult {
   body: { rule?: Rule; error?: string }
 }
 
-const DEFAULT_MODEL = 'gemini-3.8-flash'
+// Flash-Lite handles schema-constrained extraction well and answers in seconds; the larger Flash
+// model is the backup when Lite is overloaded or its answer fails validation.
+const DEFAULT_MODEL = 'gemini-3.5-flash-lite'
+const FALLBACK_MODEL = 'gemini-3.8-flash'
 const MAX_PROMPT = 600
+/** Per-attempt time limit; past this the request moves on to the other model. */
+const ATTEMPT_TIMEOUT_MS = 18_000
 
 // Best-effort abuse protection for a public demo: per-IP limits held in memory per server instance.
 const hits = new Map<string, number[]>()
@@ -53,33 +58,57 @@ export async function handleRuleRequest(
   }
 
   const ai = new GoogleGenAI({ apiKey: env.apiKey })
-  const model = env.model || DEFAULT_MODEL
-  let lastError = ''
-  // One retry with the validation error fed back, in case the first answer doesn't fit the schema.
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const primary = env.model || DEFAULT_MODEL
+  let feedback = ''
+  let busy = false
+  let useThinkingLevel = true
+  // Up to 3 attempts: bad output is retried with the validation error fed back; temporary overloads
+  // (503/500) and timeouts back off and switch models.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    // After a slow/overloaded attempt or an invalid answer, try the other model.
+    const model = busy || feedback ? FALLBACK_MODEL : primary
     try {
       const response = await ai.models.generateContent({
         model,
-        contents: attempt === 0 ? contents : `${contents}\n\nYour previous answer was invalid: ${lastError}. Fix it.`,
+        contents: feedback ? `${contents}\n\nYour previous answer was invalid: ${feedback}. Fix it.` : contents,
         config: {
           systemInstruction: domainPrompt(),
           responseMimeType: 'application/json',
           responseJsonSchema,
           temperature: 0.2,
           maxOutputTokens: 4096,
+          // Mapping text to a known schema needs little reasoning; low thinking keeps it fast.
+          ...(useThinkingLevel && { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }),
+          abortSignal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
         },
       })
       const text = response.text
       if (!text) throw new Error('The model returned an empty response.')
-      return { status: 200, body: { rule: fromLlm(JSON.parse(text)) } }
+      try {
+        return { status: 200, body: { rule: fromLlm(JSON.parse(text)) } }
+      } catch (error) {
+        feedback = (error instanceof Error ? error.message : String(error)).slice(0, 500)
+        busy = false
+        console.error(`[ruleflow] attempt ${attempt + 1} (${model}) returned an invalid rule:`, feedback)
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      // API errors (auth, quota, model) won't be fixed by retrying.
-      if (/API key|permission|quota|not found|429|403|404/i.test(message)) {
+      console.error(`[ruleflow] attempt ${attempt + 1} (${model}) failed:`, message.slice(0, 500))
+      if (useThinkingLevel && /thinking/i.test(message)) {
+        // Some models don't accept a thinking level; retry without it.
+        useThinkingLevel = false
+        continue
+      }
+      if (/API key|PERMISSION_DENIED|RESOURCE_EXHAUSTED|quota|NOT_FOUND|\b40[034]\b/i.test(message)) {
         return { status: 502, body: { error: `Gemini error: ${message.slice(0, 300)}` } }
       }
-      lastError = message.slice(0, 500)
+      // Overloaded / internal errors are usually momentary: wait, then try again.
+      busy = true
+      await new Promise((r) => setTimeout(r, 600))
     }
+  }
+  if (busy) {
+    return { status: 503, body: { error: 'Gemini is busy right now. Please try again in a moment.' } }
   }
   return { status: 502, body: { error: 'The AI could not produce a valid rule. Try rephrasing.' } }
 }

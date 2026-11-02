@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { EXAMPLE_PROMPTS } from '../rules/examples'
 
 interface Props {
@@ -12,6 +12,18 @@ export function PromptPanel({ busy, error, hasRule, onSubmit }: Props) {
   const [prompt, setPrompt] = useState('')
   const [mode, setMode] = useState<'generate' | 'refine'>('generate')
   const effectiveMode = hasRule ? mode : 'generate'
+  const [elapsed, setElapsed] = useState(0)
+
+  // Show how long the AI has been working, so slow responses don't look stuck.
+  useEffect(() => {
+    if (!busy) return
+    const started = Date.now()
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000)
+    return () => {
+      clearInterval(id)
+      setElapsed(0)
+    }
+  }, [busy])
 
   const submit = (e: FormEvent) => {
     e.preventDefault()
@@ -54,7 +66,15 @@ export function PromptPanel({ busy, error, hasRule, onSubmit }: Props) {
         <div className="prompt-actions">
           <span className="muted small">⌘↵ to send · Gemini turns it into an editable rule</span>
           <button className="primary" disabled={busy || prompt.trim().length < 3}>
-            {busy ? <span className="spinner" aria-label="Working" /> : effectiveMode === 'refine' ? 'Update rule' : 'Generate rule'}
+            {busy ? (
+              <>
+                <span className="spinner" aria-hidden="true" /> <span className="busy-label">Thinking… {elapsed > 2 ? `${elapsed}s` : ''}</span>
+              </>
+            ) : effectiveMode === 'refine' ? (
+              'Update rule'
+            ) : (
+              'Generate rule'
+            )}
           </button>
         </div>
       </form>

@@ -33,4 +33,4 @@ anything that doesn't fit.
 
 ## Deploy
 Import the repo into Vercel and set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`, default
-`gemini-3.8-flash`) in the project's environment variables.
+`gemini-3.5-flash-lite`, with `gemini-3.8-flash` as backup) in the project's environment variables.

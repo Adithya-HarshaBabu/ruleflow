@@ -812,3 +812,10 @@ tbody tr.selected {
     transition: none !important;
   }
 }
+.primary {
+  align-items: center;
+  gap: 8px;
+}
+.busy-label {
+  font-variant-numeric: tabular-nums;
+}
