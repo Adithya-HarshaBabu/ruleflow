@@ -1,4 +1,4 @@
-import type { ActionType, FieldDef, FieldType, Operator } from './types'
+import type { ActionType, FieldDef, FieldType, Operator } from './types.js'
 
 /** The sample domain: e-commerce orders. Rules can only reference these fields. */
 export const FIELDS: FieldDef[] = [

@@ -1,6 +1,6 @@
 import { GoogleGenAI, ThinkingLevel } from '@google/genai'
-import { domainPrompt, fromLlm, llmJsonSchema, toLlm } from '../rules/llm'
-import type { Rule } from '../rules/types'
+import { domainPrompt, fromLlm, llmJsonSchema, toLlm } from '../rules/llm.js'
+import type { Rule } from '../rules/types.js'
 
 export interface HandlerResult {
   status: number

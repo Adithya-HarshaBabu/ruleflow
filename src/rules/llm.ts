@@ -1,7 +1,7 @@
 import { z } from 'zod'
-import { ACTION_TYPES, ACTIONS, fieldByKey, FIELDS, OPERATORS } from './schema'
-import { newId } from './ids'
-import type { Action, Condition, Group, Operator, Rule, RuleNode } from './types'
+import { ACTION_TYPES, ACTIONS, fieldByKey, FIELDS, OPERATORS } from './schema.js'
+import { newId } from './ids.js'
+import type { Action, Condition, Group, Operator, Rule, RuleNode } from './types.js'
 
 // Gemini returns a flat list of nodes with parent links (simpler for structured output than a
 // recursive schema). Values arrive as strings and are coerced by each field's type.

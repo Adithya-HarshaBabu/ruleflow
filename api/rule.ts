@@ -1,4 +1,4 @@
-import { handleRuleRequest } from '../src/server/ruleHandler'
+import { handleRuleRequest } from '../src/server/ruleHandler.js'
 
 // Vercel Function (Node.js runtime): POST /api/rule
 export async function POST(request: Request): Promise<Response> {
